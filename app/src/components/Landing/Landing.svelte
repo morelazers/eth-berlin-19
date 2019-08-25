@@ -15,6 +15,7 @@
   export let cleanBalance;
 
   let addressModal = false;
+  let copied = false
 
   let qrCode = writable();
 
@@ -73,17 +74,25 @@
     transform: rotate(-8.2deg);
   }
 
-  #screen {
+  #screenOverlay {
     position: fixed;
     width: 100%;
+    max-width: 60vh;
+    max-height: 100vh;
     height: 100%;
     z-index: 3;
   }
   #wallpaper {
+    max-width: 60vh;
+    max-height: 100vh;
     position: fixed;
     width: 100%;
     height: 100%;
     z-index: 1;
+  }
+
+  #washzone {
+     max-width: 60vh;
   }
 
   #plant {
@@ -97,6 +106,10 @@
     margin: 0.5rem;
   }
 
+  .gtext {
+    font-family: "VT323", monospace;
+  }
+
   h5 {
     font-family: "VT323", monospace;
     font-size: 2rem;
@@ -108,27 +121,39 @@
     color: white;
   }
 
-  .close-modal {
-    background: red;
+  .backbutton {
+    background: #ffc555;
+    border-radius: 0.2rem;
+    font-family: "VT323", monospace;
+    font-size: 1.5rem;
+    color: #eb5757;
+    border: 2px solid #eb5757;
   }
 </style>
 
-<div id="screen" class="flex flex-column justify-between items-center">
+<div id="screenOverlay" class="flex flex-column justify-between items-center">
   {#if addressModal}
     <div
+      transition:fade="{{duration: 200}}"
       class="flex flex-column absolute dark-fade items-center justify-around
       h-100 w-100 z-5">
       <div class="flex flex-column items-center justify-center">
         <img
           src={$qrCode}
           alt="qr"
-          class="w-50"
+          class="w-75"
           on:click={() => {
             copy(address);
+            copied = true
           }} />
-        <div class="pa2">Send ETH here, tap QR to copy address</div>
+        <div class="pa2 f3 gtext">Send ETH here, tap QR to copy address</div>
+        {#if copied}
+        <div class='pa2 f3 gtext'>Copied to clipboard 👍</div>
+    
+        {/if}
+
       </div>
-      <div class="pa3 close-modal" on:click={() => (addressModal = false)}>
+      <div class="pa3 backbutton" on:click={() => (addressModal = false)}>
         Back to the suds
       </div>
     </div>
@@ -145,7 +170,7 @@
     </button>
   </div>
 
-  <div class="pa3">
+  <div class="pa3" id='washzone'>
     <div class="flex justify-center items-end mb5 pr5">
       <img
         class="w-50 pb4"
@@ -153,7 +178,7 @@
         src="../../../img/plant_02.png"
         alt="plant" />
       <div class="z2 washer flex justify-center items-end">
-        <WashingMachine size={45} />
+        <WashingMachine size={26} />
       </div>
     </div>
     <div class="w-100 flex justify-center mt2">

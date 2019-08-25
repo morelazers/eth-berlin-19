@@ -19,6 +19,7 @@ let balance = writable()
 let cleanAddress = writable()
 let cleanBalance = writable()
 let commitments = writable()
+let proxyBalance = writable()
 
 export default {
   addBounty,
@@ -29,8 +30,10 @@ export default {
   cleanAddress,
   cleanBalance,
   withdrawAll,
+  withdrawIndex,
   balance,
-  commitments
+  commitments,
+  proxyBalance
 }
 
 let tornadoAddress
@@ -43,7 +46,7 @@ let cleanWallet
 export async function init(_tornadoAddress, _proxyAddress) {
   tornadoAddress = _tornadoAddress
   proxyAddress = _proxyAddress
-  provider = new ethers.getDefaultProvider('kovan')
+  provider = new ethers.getDefaultProvider('homestead')
   dirtyWallet = getDirtyWallet(provider)
   cleanWallet = getCleanWallet(provider)
   address.set(dirtyWallet.address)
@@ -51,21 +54,70 @@ export async function init(_tornadoAddress, _proxyAddress) {
   commitments.set(db.get('commitments').value())
   balance.set(await dirtyWallet.getBalance())
   cleanBalance.set(await cleanWallet.getBalance())
-  await window.tornado.init(web3)
+  proxyBalance.set(await provider.getBalance(proxyAddress))
+
+  provider.on(dirtyWallet.address, _bal => {
+    balance.set(_bal)
+  })
+
+  provider.on(cleanWallet.address, _bal => {
+    cleanBalance.set(_bal)
+  })
+
+  provider.on(proxyAddress, _bal => {
+    proxyBalance.set(_bal)
+  })
+
+  await window.tornado.init(true)
 }
 
-export async function deposit() {
+export async function takeLaundryHome(home) {
+    // Make sure we are sweeping to an EOA, not a contract. The gas required
+    // to send to a contract cannot be certain, so we may leave dust behind
+    // or not set a high enough gas limit, in which case the transaction will
+    // fail.
+    let code = await provider.getCode(home);
+    if (code !== '0x') { throw new Error('Cannot sweep to a contract'); }
+
+    // Get the current balance
+    let balance = await cleanWallet.getBalance();
+
+    // Normally we would let the Wallet populate this for us, but we
+    // need to compute EXACTLY how much value to send
+    let gasPrice = await provider.getGasPrice();
+
+    // The exact cost (in gas) to send to an Externally Owned Account (EOA)
+    let gasLimit = 21000;
+
+    // The balance less exactly the txfee in wei
+    let value = balance.sub(gasPrice.mul(gasLimit))
+
+    let tx = await cleanWallet.sendTransaction({
+        gasLimit: gasLimit,
+        gasPrice: gasPrice,
+        to: home,
+        value: value
+    });
+
+    return tx
+}
+
+export async function deposit(i) {
   const { commitment, note } = window.tornado.deposit()
-  db.get('commitments')
-    .push({ commitment, timestamp: Math.floor(Date.now() / 1000) })
-    .write()
-  db.get('notes')
-    .push(note)
-    .write()
+  const commits = db.get('commitments').value()
+  const notes = db.get('notes').value()
+
+  commits[i] = { commitment, timestamp: Math.floor(Date.now() / 1000) }
+  notes[i] = note
+
+  db.set('commitments', commits).write()
+  db.set('notes', notes).write()
 
   commitments.set(db.get('commitments').value())
 
-  console.log({ commitment, note })
+  const nonce = await dirtyWallet.getTransactionCount('pending')
+
+  console.log({ commitment, note, nonce })
   // call deposit on mixer with commitment as param 1 (with 0.1 eth)
   const contract = new ethers.Contract(
     tornadoAddress,
@@ -74,7 +126,8 @@ export async function deposit() {
   )
   let actualContract = contract.connect(dirtyWallet)
   const tx = await actualContract.deposit(commitment, {
-    value: ethers.utils.parseEther('0.1')
+    value: ethers.utils.parseEther('0.1'),
+    nonce
   })
   return tx
 }
@@ -113,6 +166,22 @@ export async function withdraw(note) {
   })).json()
   console.log({ res })
   return res.tx
+}
+
+export async function withdrawIndex(i) {
+  const notes = db.get('notes').value()
+  const commits = db.get('commitments').value()
+  const note = notes[i]
+  try {
+    if (note) await withdraw(note)
+  } catch (error) {
+    console.error(`failed to withdraw note ${note}`)    
+  }
+  notes[i] = undefined
+  commits[i] = undefined
+  db.set('notes', notes).write()
+  db.set('commitments', commits).write()
+  commitments.set(commits)
 }
 
 export async function hasEnoughEth() {

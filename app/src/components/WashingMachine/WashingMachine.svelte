@@ -1,33 +1,27 @@
 <script>
   import { onMount } from "svelte";
   import { fade, slide, crossfade } from "svelte/transition";
+  
+    export let deposit;
+    export let withdraw;
+    export let commitment;
+    let withdrawing;
+    let tx;
 
+  let seed = commitment ? commitment.timestamp : 1234
+  console.log(seed % 3)
+  console.log(seed)
   export let size = 50;
   const rand = (x = 2) => {
     return Math.round(Math.random() * x);
   };
-  let plants = rand(2);
-  let laundry = rand(2);
-  let backgrounds = {
-    colours: ["#5d526d", "#7dac7d", "#b3e876", "#fff66d", "#fff66d"],
-    images: [
-      "../../../img/wallpaper_04.jpg",
-      "../../../img/wallpaper_05.jpg",
-      "../../../img/wallpaper_03.png",
-      "../../../img/wallpaper_02.gif",
-      "../../../img/wallpaper_01.gif"
-    ]
-  };
+  let plants = seed % 3;
+  let laundry = seed % 3;
+  let backgrounds = ["#5d526d", "#7dac7d", "#b3e876", "#fff66d", "#fff66d"]
+  let index = (seed % backgrounds.length+1)
+  let background = backgrounds[seed % backgrounds.length];
 
-  let backgroundType = backgrounds[Object.keys(backgrounds)[rand(1)]];
-  let background =
-    backgroundType[Math.floor(Math.random() * Object.keys(backgrounds).length)];
 
-  export let deposit;
-  export let withdraw;
-  export let commitment;
-  let withdrawing;
-  let tx;
 </script>
 
 <style>
@@ -40,7 +34,6 @@
 
   #panel {
     border-radius: 0.2rem 0.4rem 0 0;
-    background: #ffc555;
     height: 20%;
     border-bottom: 0.2rem solid #00000020;
     background-blend-mode: soft-light;
@@ -80,7 +73,6 @@
 
   #door {
     border-radius: 100rem;
-    background: #ffc555;
     border: 0.1rem solid #00000020;
     width: 62%;
     background-blend-mode: soft-light;
@@ -103,14 +95,13 @@
   }
 
   #extras {
-    height: 4rem;
     margin-bottom: -5px;
     z-index: 3;
+    max-height: 4rem;
   }
 
   #extras img {
     position: relative;
-    height: 100%;
   }
 
   .munny {
@@ -118,6 +109,32 @@
   }
   .rumble {
     animation: rumbling 0.2s infinite;
+  }
+
+  .glow {
+    animation: glowing 3s infinite alternate;
+  }
+
+  .greenglow {
+    animation: glowgreen 1s infinite alternate;
+  }
+
+  @keyframes glowgreen {
+    from {
+      box-shadow: 0px 0px 40px #00ff00ee;
+    }
+    to {
+      box-shadow: 1px 1px 1px #00ff00ee;
+    }
+  }
+
+  @keyframes glowing {
+    from {
+      box-shadow: 10px 10px 50px #ff0000aa;
+    }
+    to {
+      box-shadow: 1px 1px 1px #ff0000aa;
+    }
   }
 
   @keyframes spin {
@@ -150,39 +167,54 @@
   }
 </style>
 
-<!-- Make responsive -->
+{#if seed}
 <div
   class:rumble={tx}
-  style="{`width: ${size}vw; height: ${size * 1.2}vw;`}in:fade">
+  style="{`width: ${size}vh; height: ${size * 1.2}vh;`}in:fade">
   <div
     class={`w-100 flex justify-around items-start; ${plants == 2 ? 'flex-row-reverse' : ''}`}
     id="extras">
     {#if laundry}
       {#if laundry === 1}
-        <img alt="" src="../../../img/laundry_01.png" />
+        <img
+          width={size * 1.2 + 'px'}
+          height={size * 1.8 + 'px'}
+          alt=""
+          src="../../../img/laundry_01.png" />
       {:else if laundry === 2}
-        <img alt="" src="../../../img/laundry_01.png" />
-        <img alt="" src="../../../img/laundry_02.png" />
+        <img
+          width={size * 1.2 + 'px'}
+          height={size * 1.8 + 'px'}
+          alt=""
+          src="../../../img/laundry_01.png" />
       {/if}
     {/if}
     {#if plants}
       {#if plants === 1}
-        <img alt="" src="../../../img/plant_01.png" />
+        <img
+          width={size * 1.2 + 'px'}
+          height={size * 1.8 + 'px'}
+          alt=""
+          src="../../../img/plant_01.png" />
       {:else if plants === 2}
-        <img alt="" src="../../../img/plant_01.png" />
-        <img alt="" src="../../../img/plant_02.png" />
+        <img
+          width={size * 1.2 + 'px'}
+          height={size * 1.8 + 'px'}
+          alt=""
+          src="../../../img/plant_01.png" />
       {/if}
     {/if}
   </div>
 
   <div
     id="machine"
+    class:glow={withdrawing}
     class="flex flex-column w-100 h-100 justify-between items-center">
     {#if background}
       <div
-        style={background.length > 9 ? `background: url('${background}'), lightgrey;` : `background: ${background};`}
         id="panel"
-        class="w-100 flex justify-around items-center">
+        class="w-100 flex justify-around items-center"
+        style={background.length > 9 ? `background: url('${background}')` : `background: ${background};`}>
         <div class="flex items-center justify-between w-25 h-100">
           <div id="dial" class="flex justify-center items-center">
             <div />
@@ -204,18 +236,20 @@
         </div>
       </div>
       <div
-        style={background.length > 9 ? `background: url('${background}'), lightgrey;` : `background: ${background};`}
+        style={background.length > 9 ? `background: url('${background}')` : `background: ${background};`}
         id="door"
+        class:greenglow={commitment && !tx}
         class="flex items-center justify-center">
         <div class="flex items-center justify-center">
           <div
             on:click={async () => {
               if (commitment) {
                 withdrawing = true;
-                withdraw();
+                await withdraw();
+                withdrawing = false;
               } else {
                 tx = true;
-                tx = await deposit();
+                tx = await deposit(index);
                 await tx.wait();
                 tx = null;
               }
@@ -231,3 +265,4 @@
   </div>
 
 </div>
+{/if}
